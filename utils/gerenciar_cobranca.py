@@ -3,10 +3,13 @@ from tkinter import messagebox
 from pathlib import Path
 import json
 from datetime import datetime
-from modelos import ClienteCobranca, obter_pasta_titulos, obter_pasta_clientes
+from modelos import ClienteCobranca, obter_pasta_titulos, obter_pasta_clientes, TituloCobranca
+from enviar_email import enviar_email_cobranca_cliente
+from enviar_whatsapp import enviar_whatsapp_cobranca_cliente
 
 class JanelaGerenciarCobranca:
     def __init__(self, master):
+        self.master = master
         self.janela = tk.Toplevel(master)
         self.janela.title("Gerenciamento de Clientes com Cobrança Ativa")
         self.janela.geometry("740x620")
@@ -34,6 +37,9 @@ class JanelaGerenciarCobranca:
         self.carregar_clientes_ativos()
 
     def carregar_clientes_ativos(self):
+        for widget in self.scrollable_frame.winfo_children():
+            widget.destroy()
+
         pasta_titulos = obter_pasta_titulos()
         pasta_clientes = obter_pasta_clientes()
 
@@ -101,21 +107,41 @@ class JanelaGerenciarCobranca:
             lbl_qtd = tk.Label(card, text=f"{qtd_titulos} título(s) em aberto", font=("Arial", 8), fg="gray", bg="white")
             lbl_qtd.pack(pady=(0, 10))
 
-            card.bind("<Button-1>", lambda e, c=cod_cfo, n=nome_cli, t=titulos: self.abrir_detalhes_cliente(c, n, t))
-            lbl_nome.bind("<Button-1>", lambda e, c=cod_cfo, n=nome_cli, t=titulos: self.abrir_detalhes_cliente(c, n, t))
-            lbl_qtd.bind("<Button-1>", lambda e, c=cod_cfo, n=nome_cli, t=titulos: self.abrir_detalhes_cliente(c, n, t))
+            card.bind("<Button-1>", lambda e, c=cod_cfo, n=nome_cli: self.abrir_detalhes_cliente(c, n))
+            lbl_nome.bind("<Button-1>", lambda e, c=cod_cfo, n=nome_cli: self.abrir_detalhes_cliente(c, n))
+            lbl_qtd.bind("<Button-1>", lambda e, c=cod_cfo, n=nome_cli: self.abrir_detalhes_cliente(c, n))
 
             coluna += 1
             if coluna >= max_colunas:
                 coluna = 0
                 linha += 1
 
-    def abrir_detalhes_cliente(self, cod_cfo, nome_cliente, titulos):
-        """Abre a subjanela de gerenciamento individual do cliente."""
-        sub = tk.Toplevel(self.janela)
-        sub.title(f"Cobrança: {nome_cliente}")
-        sub.geometry("680x660")
-        sub.grab_set()
+    def obter_titulos_atualizados_cliente(self, cod_cfo):
+        pasta_titulos = obter_pasta_titulos()
+        titulos_cliente = []
+        for arquivo in pasta_titulos.glob("titulo_*.json"):
+            try:
+                with open(arquivo, 'r', encoding='utf-8') as f:
+                    dados = json.load(f)
+                    if str(dados.get("cod_cfo")) == str(cod_cfo) and dados.get("ativo") == "S":
+                        titulos_cliente.append(dados)
+            except Exception:
+                pass
+        return titulos_cliente
+
+    def abrir_detalhes_cliente(self, cod_cfo, nome_cliente):
+        """Abre a subjanela de gerenciamento individual do cliente de forma fluida."""
+        if hasattr(self, "sub_janela") and self.sub_janela.winfo_exists():
+            self.sub_janela.destroy()
+
+        self.sub_janela = tk.Toplevel(self.janela)
+        self.sub_janela.title(f"Cobrança: {nome_cliente}")
+        self.sub_janela.geometry("700x780")
+        self.sub_janela.transient(self.janela)
+        self.sub_janela.grab_set()
+
+        sub = self.sub_janela
+        titulos = self.obter_titulos_atualizados_cliente(cod_cfo)
 
         cliente_obj = ClienteCobranca.carregar_json(cod_cfo)
         if not cliente_obj:
@@ -146,7 +172,130 @@ class JanelaGerenciarCobranca:
         btn_salvar_contatos = tk.Button(frame_contatos, text="Salvar Contatos", font=("Arial", 8, "bold"), command=salvar_contatos)
         btn_salvar_contatos.grid(row=0, column=2, rowspan=2, padx=10, pady=5)
 
-        # Processa e formata o histórico de todos os títulos ativos
+        # Container para os blocos dinâmicos de histórico
+        self.frame_historicos_container = tk.Frame(sub)
+        self.frame_historicos_container.pack(fill="both", expand=True, padx=20, pady=5)
+
+        self.atualizar_painel_historico(self.frame_historicos_container, titulos)
+
+        # --- BOTÕES DE AÇÃO DE COBRANÇA ---
+        frame_botoes = tk.Frame(sub)
+        frame_botoes.pack(pady=15)
+
+        def atualizar_interface_pos_acao():
+            nonlocal titulos
+            titulos = self.obter_titulos_atualizados_cliente(cod_cfo)
+            for widget in self.frame_historicos_container.winfo_children():
+                widget.destroy()
+            self.atualizar_painel_historico(self.frame_historicos_container, titulos)
+            self.carregar_clientes_ativos()
+
+        def acao_whatsapp():
+            w_num = entry_whats.get().strip()
+            if not w_num:
+                messagebox.showwarning("Aviso", "Preencha o número de WhatsApp do cliente.", parent=sub)
+                return
+            
+            cliente_obj.whatsapp_cobranca = w_num
+            cliente_obj.salvar_json()
+
+            try:
+                enviar_whatsapp_cobranca_cliente(cliente_obj, titulos)
+                
+                for t_dados in titulos:
+                    t_obj = TituloCobranca.carregar_json(
+                        t_dados.get("numero_documento"), 
+                        t_dados.get("parcela", 1), 
+                        t_dados.get("cod_cfo")
+                    )
+                    if t_obj:
+                        t_obj.adicionar_historico(canal="WHATSAPP", status="ENVIADO", observacao=f"Mensagem enviada para {w_num}")
+                        t_obj.salvar_json()
+
+                messagebox.showinfo("Sucesso", f"Cobrança via WhatsApp enviada com sucesso para:\n{w_num}", parent=sub)
+                atualizar_interface_pos_acao()
+            except Exception as e:
+                messagebox.showerror("Erro no Envio", f"Não foi possível enviar o WhatsApp:\n{e}", parent=sub)
+
+        def acao_email():
+            e_end = entry_email.get().strip()
+            if not e_end:
+                messagebox.showwarning("Aviso", "Preencha o e-mail do cliente.", parent=sub)
+                return
+            
+            cliente_obj.email_cobranca = e_end
+            cliente_obj.salvar_json()
+
+            try:
+                enviar_email_cobranca_cliente(cliente_obj, titulos)
+                
+                for t_dados in titulos:
+                    t_obj = TituloCobranca.carregar_json(
+                        t_dados.get("numero_documento"), 
+                        t_dados.get("parcela", 1), 
+                        t_dados.get("cod_cfo")
+                    )
+                    if t_obj:
+                        t_obj.adicionar_historico(canal="EMAIL", status="ENVIADO", observacao=f"E-mail enviado para {e_end}")
+                        t_obj.salvar_json()
+
+                messagebox.showinfo("Sucesso", f"E-mail de cobrança enviado com sucesso para:\n{e_end}", parent=sub)
+                atualizar_interface_pos_acao()
+            except Exception as e:
+                messagebox.showerror("Erro no Envio", f"Não foi possível enviar o e-mail:\n{e}", parent=sub)
+
+        def acao_personalizado():
+            sub_pers = tk.Toplevel(sub)
+            sub_pers.title(f"Cobrança Personalizada - {nome_cliente}")
+            sub_pers.geometry("450x300")
+            sub_pers.transient(sub)
+            sub_pers.grab_set()
+
+            tk.Label(sub_pers, text="Digite a mensagem de cobrança personalizada:", font=("Arial", 10, "bold")).pack(anchor="w", padx=20, pady=(15, 5))
+            
+            text_msg = tk.Text(sub_pers, font=("Arial", 9), width=50, height=8)
+            text_msg.pack(padx=20, pady=5)
+            text_msg.focus()
+
+            def gravar_personalizado():
+                mensagem_digitada = text_msg.get("1.0", tk.END).strip()
+                if not mensagem_digitada:
+                    messagebox.showwarning("Aviso", "A mensagem não pode estar vazia.", parent=sub_pers)
+                    return
+
+                observacao_formatada = f'"{mensagem_digitada}"'
+
+                try:
+                    for t_dados in titulos:
+                        t_obj = TituloCobranca.carregar_json(
+                            t_dados.get("numero_documento"), 
+                            t_dados.get("parcela", 1), 
+                            t_dados.get("cod_cfo")
+                        )
+                        if t_obj:
+                            t_obj.adicionar_historico(canal="PERSONALIZADO", status="REGISTRADO", observacao=observacao_formatada)
+                            t_obj.salvar_json()
+
+                    messagebox.showinfo("Sucesso", "Cobrança personalizada registrada em todos os documentos ativos!", parent=sub_pers)
+                    sub_pers.destroy()
+                    atualizar_interface_pos_acao()
+                except Exception as e:
+                    messagebox.showerror("Erro", f"Não foi possível gravar o histórico:\n{e}", parent=sub_pers)
+
+            btn_gravar = tk.Button(sub_pers, text="Gravar no Histórico", font=("Arial", 9, "bold"), bg="#2563eb", fg="white", width=20, height=2, command=gravar_personalizado)
+            btn_gravar.pack(pady=10)
+
+        btn_whats = tk.Button(frame_botoes, text="Cobrar WhatsApp", font=("Arial", 9, "bold"), bg="#10b981", fg="white", width=16, height=2, command=acao_whatsapp)
+        btn_whats.grid(row=0, column=0, padx=8)
+
+        btn_email = tk.Button(frame_botoes, text="Cobrar E-mail", font=("Arial", 9, "bold"), bg="#3b82f6", fg="white", width=16, height=2, command=acao_email)
+        btn_email.grid(row=0, column=1, padx=8)
+
+        btn_pers = tk.Button(frame_botoes, text="Cobrar Personalizado", font=("Arial", 9, "bold"), bg="#6b7280", fg="white", width=18, height=2, command=acao_personalizado)
+        btn_pers.grid(row=0, column=2, padx=8)
+
+    def atualizar_painel_historico(self, container, titulos):
+        """Reconstrói os blocos de Última Cobrança e Histórico Completo com altura expandida (18 linhas)."""
         todos_historicos = []
         ultimas_por_documento = {}
 
@@ -201,22 +350,18 @@ class JanelaGerenciarCobranca:
         todos_historicos.sort(key=lambda x: x["data_hora"], reverse=True)
 
         # --- SEÇÃO: ÚLTIMA COBRANÇA DE CADA DOCUMENTO EM DESTAQUE ---
-        frame_ultima = tk.LabelFrame(sub, text=" Última Cobrança Realizada (Por Documento) ", font=("Arial", 9, "bold"), fg="#1d4ed8")
-        frame_ultima.pack(fill="x", padx=20, pady=(10, 5))
+        frame_ultima = tk.LabelFrame(container, text=" Última Cobrança Realizada (Por Documento) ", font=("Arial", 9, "bold"), fg="#1d4ed8")
+        frame_ultima.pack(fill="x", padx=0, pady=(2, 2))
 
-        if ultimas_por_documento:
-            texto_ultimas = "\n".join(ultimas_por_documento.values())
-        else:
-            texto_ultimas = "Nenhuma cobrança registrada para os títulos ativos."
-
+        texto_ultimas = "\n".join(ultimas_por_documento.values()) if ultimas_por_documento else "Nenhuma cobrança registrada para os títulos ativos."
         lbl_ultima = tk.Label(frame_ultima, text=texto_ultimas, font=("Arial", 9, "bold"), justify="left", fg="#374151")
-        lbl_ultima.pack(anchor="w", padx=10, pady=8)
+        lbl_ultima.pack(anchor="w", padx=10, pady=6)
 
-        # --- SEÇÃO: HISTÓRICO COMPLETO ---
-        tk.Label(sub, text="Histórico Completo:", font=("Arial", 9, "bold")).pack(anchor="w", padx=20, pady=(8, 2))
+        # --- SEÇÃO: HISTÓRICO COMPLETO (EXPANDIDO PARA ~18 LINHAS) ---
+        tk.Label(container, text="Histórico Completo:", font=("Arial", 9, "bold")).pack(anchor="w", padx=0, pady=(4, 2))
         
-        text_historico = tk.Text(sub, font=("Arial", 9), width=82, height=6)
-        text_historico.pack(padx=20)
+        text_historico = tk.Text(container, font=("Arial", 9), width=85, height=18)
+        text_historico.pack(padx=0)
         text_historico.config(state="normal")
         
         if todos_historicos:
@@ -224,117 +369,3 @@ class JanelaGerenciarCobranca:
         else:
             text_historico.insert("1.0", "Nenhum histórico registrado para os títulos deste cliente.")
         text_historico.config(state="disabled")
-
-        # --- BOTÕES DE AÇÃO DE COBRANÇA ---
-        frame_botoes = tk.Frame(sub)
-        frame_botoes.pack(pady=15)
-
-        def acao_whatsapp():
-            w_num = entry_whats.get().strip()
-            if not w_num:
-                messagebox.showwarning("Aviso", "Preencha o número de WhatsApp do cliente.", parent=sub)
-                return
-            
-            cliente_obj.whatsapp_cobranca = w_num
-            cliente_obj.salvar_json()
-
-            try:
-                from enviar_whatsapp import enviar_whatsapp_cobranca_cliente
-                enviar_whatsapp_cobranca_cliente(cliente_obj, titulos)
-                
-                from modelos import TituloCobranca
-                for t_dados in titulos:
-                    t_obj = TituloCobranca.carregar_json(
-                        t_dados.get("numero_documento"), 
-                        t_dados.get("parcela", 1), 
-                        t_dados.get("cod_cfo")
-                    )
-                    if t_obj:
-                        t_obj.adicionar_historico(canal="WHATSAPP", status="ENVIADO", observacao=f"Mensagem enviada para {w_num}")
-                        t_obj.salvar_json()
-
-                messagebox.showinfo("Sucesso", f"Cobrança via WhatsApp enviada com sucesso para:\n{w_num}", parent=sub)
-                sub.destroy()
-            except Exception as e:
-                messagebox.showerror("Erro no Envio", f"Não foi possível enviar o WhatsApp:\n{e}", parent=sub)
-
-        def acao_email():
-            e_end = entry_email.get().strip()
-            if not e_end:
-                messagebox.showwarning("Aviso", "Preencha o e-mail do cliente.", parent=sub)
-                return
-            
-            cliente_obj.email_cobranca = e_end
-            cliente_obj.salvar_json()
-
-            try:
-                from enviar_email import enviar_email_cobranca_cliente
-                enviar_email_cobranca_cliente(cliente_obj, titulos)
-                
-                from modelos import TituloCobranca
-                for t_dados in titulos:
-                    t_obj = TituloCobranca.carregar_json(
-                        t_dados.get("numero_documento"), 
-                        t_dados.get("parcela", 1), 
-                        t_dados.get("cod_cfo")
-                    )
-                    if t_obj:
-                        t_obj.adicionar_historico(canal="EMAIL", status="ENVIADO", observacao=f"E-mail enviado para {e_end}")
-                        t_obj.salvar_json()
-
-                messagebox.showinfo("Sucesso", f"E-mail de cobrança enviado com sucesso para:\n{e_end}", parent=sub)
-                sub.destroy()
-            except Exception as e:
-                messagebox.showerror("Erro no Envio", f"Não foi possível enviar o e-mail:\n{e}", parent=sub)
-
-        def acao_personalizado():
-            """Abre uma subjanela para digitar a mensagem personalizada de cobrança."""
-            sub_pers = tk.Toplevel(sub)
-            sub_pers.title(f"Cobrança Personalizada - {nome_cliente}")
-            sub_pers.geometry("450x300")
-            sub_pers.grab_set()
-
-            tk.Label(sub_pers, text="Digite a mensagem de cobrança personalizada:", font=("Arial", 10, "bold")).pack(anchor="w", padx=20, pady=(15, 5))
-            
-            text_msg = tk.Text(sub_pers, font=("Arial", 9), width=50, height=8)
-            text_msg.pack(padx=20, pady=5)
-            text_msg.focus()
-
-            def gravar_personalizado():
-                mensagem_digitada = text_msg.get("1.0", tk.END).strip()
-                if not mensagem_digitada:
-                    messagebox.showwarning("Aviso", "A mensagem não pode estar vazia.", parent=sub_pers)
-                    return
-
-                # Formata a mensagem com aspas conforme solicitado
-                observacao_formatada = f'"{mensagem_digitada}"'
-
-                try:
-                    from modelos import TituloCobranca
-                    for t_dados in titulos:
-                        t_obj = TituloCobranca.carregar_json(
-                            t_dados.get("numero_documento"), 
-                            t_dados.get("parcela", 1), 
-                            t_dados.get("cod_cfo")
-                        )
-                        if t_obj:
-                            t_obj.adicionar_historico(canal="PERSONALIZADO", status="REGISTRADO", observacao=observacao_formatada)
-                            t_obj.salvar_json()
-
-                    messagebox.showinfo("Sucesso", "Cobrança personalizada registrada em todos os documentos ativos!", parent=sub_pers)
-                    sub_pers.destroy()
-                    sub.destroy() # Fecha a janela do cliente para atualizar os dados
-                except Exception as e:
-                    messagebox.showerror("Erro", f"Não foi possível gravar o histórico:\n{e}", parent=sub_pers)
-
-            btn_gravar = tk.Button(sub_pers, text="Gravar no Histórico", font=("Arial", 9, "bold"), bg="#2563eb", fg="white", width=20, height=2, command=gravar_personalizado)
-            btn_gravar.pack(pady=10)
-
-        btn_whats = tk.Button(frame_botoes, text="Cobrar WhatsApp", font=("Arial", 9, "bold"), bg="#10b981", fg="white", width=16, height=2, command=acao_whatsapp)
-        btn_whats.grid(row=0, column=0, padx=8)
-
-        btn_email = tk.Button(frame_botoes, text="Cobrar E-mail", font=("Arial", 9, "bold"), bg="#3b82f6", fg="white", width=16, height=2, command=acao_email)
-        btn_email.grid(row=0, column=1, padx=8)
-
-        btn_pers = tk.Button(frame_botoes, text="Cobrar Personalizado", font=("Arial", 9, "bold"), bg="#6b7280", fg="white", width=18, height=2, command=acao_personalizado)
-        btn_pers.grid(row=0, column=2, padx=8)
