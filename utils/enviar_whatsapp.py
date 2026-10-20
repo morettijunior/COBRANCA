@@ -4,15 +4,24 @@ import requests
 from pathlib import Path
 import sys
 
+# Garante acesso ao módulo config na pasta utils ou raiz
+sys.path.append(str(Path(__file__).parent))
+import config
+
+# --- AGORA AS VARIÁVEIS PODEM LER DO CONFIG COM SEGURANÇA ---
+URL_BASE_DEFAULT = getattr(config, "whats_url", "http://servidor:8080").rstrip("/")
+INSTANCE_DEFAULT = getattr(config, "whats_instance", "rondochassis")
+APIKEY_DEFAULT = getattr(config, "whats_apikey", "RondoChassis2026*")
+
 # Garante acesso ao módulo config em Meus Documentos / ProjetoCobranca
 sys.path.append(str(Path(__file__).parent))
 import config
 
 # --- CONFIGURAÇÕES INTERNAS DA EVOLUTION API ---
 CONFIG_WHATSAPP_INTERNO = {
-    "url_base": "http://servidor:8080",
-    "instance": "rondochassis",
-    "apikey": "RondoChassis2026*"
+    "url_base": getattr(config, "whats_url", "http://servidor:8080"),
+    "instance": getattr(config, "whats_instance", "rondochassis"),
+    "apikey": getattr(config, "whats_apikey", "")
 }
 
 def formatar_moeda(valor):

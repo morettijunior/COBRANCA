@@ -14,16 +14,6 @@ import sys
 sys.path.append(str(Path(__file__).parent))
 import config
 
-# --- CONFIGURAÇÕES INTERNAS DE E-MAIL ---
-CONFIG_EMAIL_INTERNO = {
-    "smtp_host": "smtp.hostinger.com",
-    "smtp_port": 465,
-    "imap_host": "imap.hostinger.com",
-    "imap_port": 993,
-    "remetente": "financeiro@rondochassis.com.br",  # <-- Substitua pelo seu e-mail
-    "senha": "rondoCh@ss1s"                    # <-- Substitua pela sua senha
-}
-
 def formatar_moeda(valor):
     if not valor:
         return "0,00"
@@ -32,7 +22,7 @@ def formatar_moeda(valor):
 
 def enviar_email_cobranca_cliente(cliente_obj, titulos_cliente, arquivo_anexo_path=None):
     """
-    Envia e-mail de cobrança utilizando as configurações internas e assinatura configurada.
+    Envia e-mail de cobrança utilizando as configurações seguras do config.json e assinatura configurada.
     """
     email_raw = cliente_obj.email_cobranca
     
@@ -47,19 +37,19 @@ def enviar_email_cobranca_cliente(cliente_obj, titulos_cliente, arquivo_anexo_pa
 
     cliente_nome = cliente_obj.nome_cliente
     
-    smtp_host = CONFIG_EMAIL_INTERNO.get("smtp_host")
-    smtp_port = CONFIG_EMAIL_INTERNO.get("smtp_port")
-    imap_host = CONFIG_EMAIL_INTERNO.get("imap_host")
-    imap_port = CONFIG_EMAIL_INTERNO.get("imap_port")
+    # Configurações de Servidor fixas da empresa (ou podem ir para o config se preferir)
+    smtp_host = "smtp.hostinger.com"
+    smtp_port = 465
+    imap_host = "imap.hostinger.com"
+    imap_port = 993
     
-    remetente = CONFIG_EMAIL_INTERNO.get("remetente")
-    senha = CONFIG_EMAIL_INTERNO.get("senha")
+    # Lê as credenciais seguras do config (salvas em Meus Documentos)
+    remetente = getattr(config, "email_remetente", "")
+    senha = getattr(config, "email_senha", "")
+    assinatura_path = getattr(config, "assinatura_path", "")
     
-    # Lê o caminho da assinatura salvo na tela de Configurações ANTES de montar o HTML
-    assinatura_path = getattr(config, "assinatura_path", None)
-    
-    if not remetente or "seu_email" in remetente:
-        raise ValueError("Configure o e-mail remetente e a senha internamente em 'utils/enviar_email.py'.")
+    if not remetente or not senha:
+        raise ValueError("Configure o e-mail remetente e a senha na tela de 'Configurações' do sistema.")
     
     assunto = f"Cobrança - Títulos em Aberto | Rondochassis"
         

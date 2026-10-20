@@ -20,6 +20,11 @@ def carregar_configuracoes():
     config_padrao = {
         "nome": "",
         "assinatura_path": "",
+        "email_remetente": "",
+        "email_senha": "",
+        "whats_url": "http://servidor:8080",
+        "whats_instance": "rondochassis",
+        "whats_apikey": "",
         "feriados": [
             "01/01/2026", "16/02/2026", "17/02/2026", "03/04/2026", 
             "21/04/2026", "01/05/2026", "04/06/2026", "07/09/2026", 
@@ -31,29 +36,32 @@ def carregar_configuracoes():
     if caminho_json.exists():
         try:
             with open(caminho_json, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                dados = json.load(f)
+                # Garante compatibilidade caso o json antigo não tenha as novas chaves
+                for k, v in config_padrao.items():
+                    if k not in dados:
+                        dados[k] = v
+                return dados
         except Exception:
             return config_padrao
     return config_padrao
 
-def salvar_configuracoes(nome_operador, assinatura_path_str, lista_feriados_str):
-    """Salva o nome, o caminho da assinatura e os feriados em config.json."""
+def salvar_configuracoes(dados_novos):
+    """Salva todas as configurações em config.json."""
     caminho_json = obter_pasta_documentos() / "config.json"
-    
-    dados = {
-        "nome": nome_operador,
-        "assinatura_path": assinatura_path_str,
-        "feriados": lista_feriados_str
-    }
-    
     with open(caminho_json, 'w', encoding='utf-8') as f:
-        json.dump(dados, f, ensure_ascii=False, indent=4)
+        json.dump(dados_novos, f, ensure_ascii=False, indent=4)
 
 # Carrega os dados salvos ao importar o config
 _dados_iniciais = carregar_configuracoes()
 
 nome = _dados_iniciais.get("nome", "")
 assinatura_path = _dados_iniciais.get("assinatura_path", "")
+email_remetente = _dados_iniciais.get("email_remetente", "")
+email_senha = _dados_iniciais.get("email_senha", "")
+whats_url = _dados_iniciais.get("whats_url", "http://servidor:8080")
+whats_instance = _dados_iniciais.get("whats_instance", "rondochassis")
+whats_apikey = _dados_iniciais.get("whats_apikey", "")
 
 feriados = set()
 for f_str in _dados_iniciais.get("feriados", []):
