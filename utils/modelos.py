@@ -29,22 +29,24 @@ def obter_pasta_titulos():
 
 
 class ClienteCobranca:
-    def __init__(self, cod_cfo, nome_cliente, email_cobranca="", whatsapp_cobranca=""):
+    def __init__(self, cod_cfo, nome_cliente="", email_cobranca="", whatsapp_cobranca="", cobranca_especial=False):
         self.cod_cfo = cod_cfo
         self.nome_cliente = nome_cliente
         self.email_cobranca = email_cobranca
         self.whatsapp_cobranca = whatsapp_cobranca
+        self.cobranca_especial = cobranca_especial  # True se estiver no jurídico/especial, False se for comum
 
     def para_dicionario(self):
         return {
             "cod_cfo": self.cod_cfo,
             "nome_cliente": self.nome_cliente,
             "email_cobranca": self.email_cobranca,
-            "whatsapp_cobranca": self.whatsapp_cobranca
+            "whatsapp_cobranca": self.whatsapp_cobranca,
+            "cobranca_especial": self.cobranca_especial
         }
 
     def salvar_json(self):
-        """Salva os dados de contato do cliente na subpasta 'clientes'."""
+        """Salva os dados de contato e status de cobrança do cliente na subpasta 'clientes'."""
         pasta_clientes = obter_pasta_clientes()
         arquivo = pasta_clientes / f"cliente_{self.cod_cfo}.json"
         
@@ -62,9 +64,10 @@ class ClienteCobranca:
                 dados = json.load(f)
                 return cls(
                     cod_cfo=dados.get("cod_cfo"),
-                    nome_cliente=dados.get("nome_cliente"),
+                    nome_cliente=dados.get("nome_cliente", ""),
                     email_cobranca=dados.get("email_cobranca", ""),
-                    whatsapp_cobranca=dados.get("whatsapp_cobranca", "")
+                    whatsapp_cobranca=dados.get("whatsapp_cobranca", ""),
+                    cobranca_especial=dados.get("cobranca_especial", False)
                 )
         return None
 
@@ -83,8 +86,8 @@ class TituloCobranca:
         """Adiciona um registro de tentativa/envio de cobrança ao histórico."""
         registo = {
             "data_hora": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            "canal": canal,  # Ex: 'EMAIL', 'WHATSAPP', 'MANUAL'
-            "status": status,  # Ex: 'ENVIADO', 'PROMESSA', etc.
+            "canal": canal,  # Ex: 'EMAIL', 'WHATSAPP', 'PERSONALIZADO'
+            "status": status,  # Ex: 'ENVIADO', 'REGISTRADO'
             "observacao": observacao
         }
         self.historico_cobrancas.append(registo)

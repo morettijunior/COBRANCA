@@ -12,13 +12,13 @@ class JanelaGerenciarCobranca:
         self.master = master
         self.janela = tk.Toplevel(master)
         self.janela.title("Gerenciamento de Clientes com Cobrança Ativa")
-        self.janela.geometry("740x620")
+        self.janela.geometry("780x700")
         self.janela.grab_set()
 
-        lbl_topo = tk.Label(self.janela, text="Selecione um cliente para gerenciar as cobranças:", font=("Arial", 12, "bold"))
-        lbl_topo.pack(pady=15)
+        lbl_topo = tk.Label(self.janela, text="Selecione um cliente para gerenciar (Botão direito para Cobrança Especial):", font=("Arial", 11, "bold"))
+        lbl_topo.pack(pady=10)
 
-        # Container com scroll para os cards dos clientes
+        # Container principal com scroll para toda a listagem de clientes
         self.canvas = tk.Canvas(self.janela, bg="#f3f4f6")
         self.scrollbar = tk.Scrollbar(self.janela, orient="vertical", command=self.canvas.yview)
         self.scrollable_frame = tk.Frame(self.canvas, bg="#f3f4f6")
@@ -68,63 +68,139 @@ class JanelaGerenciarCobranca:
             lbl_vazio.pack(pady=20)
             return
 
-        lista_clientes = []
+        lista_comum = []
+        lista_especial = []
+
         for cod_cfo in cods_clientes_ativos:
             arq_cli = pasta_clientes / f"cliente_{cod_cfo}.json"
             nome_cli = f"Cliente {cod_cfo}"
+            is_especial = False
+
             if arq_cli.exists():
                 try:
                     with open(arq_cli, 'r', encoding='utf-8') as f:
                         c_dados = json.load(f)
                         nome_cli = c_dados.get("nome_cliente", nome_cli)
+                        is_especial = c_dados.get("cobranca_especial", False)
                 except Exception:
                     pass
-            lista_clientes.append({
+
+            cliente_info = {
                 "cod_cfo": cod_cfo,
                 "nome_cli": nome_cli,
                 "titulos": titulos_por_cliente.get(cod_cfo, [])
-            })
+            }
 
-        lista_clientes.sort(key=lambda x: x["nome_cli"].lower())
+            if is_especial:
+                lista_especial.append(cliente_info)
+            else:
+                lista_comum.append(cliente_info)
+
+        lista_comum.sort(key=lambda x: x["nome_cli"].lower())
+        lista_especial.sort(key=lambda x: x["nome_cli"].lower())
+
+        # --- SEÇÃO 1: COBRANÇA COMUM ---
+        lbl_secao_comum = tk.Label(self.scrollable_frame, text="📌 Cobranças Comuns", font=("Arial", 10, "bold"), fg="#1e293b", bg="#f3f4f6")
+        lbl_secao_comum.pack(anchor="w", padx=10, pady=(5, 0))
+
+        frame_comum = tk.Frame(self.scrollable_frame, bg="#f3f4f6")
+        frame_comum.pack(fill="x", padx=5, pady=5)
+        self.renderizar_grade_clientes(frame_comum, lista_comum, especial=False)
+
+        # Se houver cobranças especiais, cria a faixa de separação e a seção inferior
+        if lista_especial:
+            # Faixa de separação visual
+            separator = tk.Frame(self.scrollable_frame, bg="#cbd5e1", height=2)
+            separator.pack(fill="x", padx=10, pady=15)
+
+            lbl_secao_esp = tk.Label(self.scrollable_frame, text="⚖️ Cobranças Especiais (Jurídico / Outros)", font=("Arial", 10, "bold"), fg="#dc2626", bg="#f3f4f6")
+            lbl_secao_esp.pack(anchor="w", padx=10, pady=(5, 0))
+
+            frame_especial = tk.Frame(self.scrollable_frame, bg="#f3f4f6")
+            frame_especial.pack(fill="x", padx=5, pady=5)
+            self.renderizar_grade_clientes(frame_especial, lista_especial, especial=True)
+
+    def renderizar_grade_clientes(self, parent_frame, lista_clientes, especial=False):
+        if not lista_clientes:
+            lbl_vazio = tk.Label(parent_frame, text="Nenhum cliente nesta categoria.", font=("Arial", 9, "italic"), fg="gray", bg="#f3f4f6")
+            lbl_vazio.pack(anchor="w", padx=10, pady=5)
+            return
 
         coluna = 0
         linha = 0
         max_colunas = 3
+
+        # Frame interno para a grid
+        grid_frame = tk.Frame(parent_frame, bg="#f3f4f6")
+        grid_frame.pack(anchor="w")
 
         for cli in lista_clientes:
             cod_cfo = cli["cod_cfo"]
             nome_cli = cli["nome_cli"]
             titulos = cli["titulos"]
 
-            card = tk.Frame(self.scrollable_frame, bg="white", bd=1, relief="solid", width=200, height=100)
-            card.grid_propagate(False)
-            card.grid(row=linha, column=coluna, padx=10, pady=10)
+            # Cor de fundo do card: Branco para comum, avermelhado claro para especial
+            bg_card = "#fff5f5" if especial else "white"
+            borda_card = "#ef4444" if especial else "solid"
+            relief_card = "solid" if especial else "solid"
 
-            lbl_nome = tk.Label(card, text=nome_cli, font=("Arial", 10, "bold"), bg="white", wraplength=180, justify="center")
-            lbl_nome.pack(pady=(15, 5))
+            card = tk.Frame(grid_frame, bg=bg_card, bd=1, relief=relief_card, width=220, height=105)
+            card.grid_propagate(False)
+            card.grid(row=linha, column=coluna, padx=8, pady=8)
+
+            # Destaca a bordinha se for especial (via cor do texto/rótulo)
+            lbl_nome = tk.Label(card, text=nome_cli, font=("Arial", 10, "bold"), fg="#991b1b" if especial else "#111827", bg=bg_card, wraplength=200, justify="center")
+            lbl_nome.pack(pady=(12, 4))
 
             qtd_titulos = len(titulos)
-            lbl_qtd = tk.Label(card, text=f"{qtd_titulos} título(s) em aberto", font=("Arial", 8), fg="gray", bg="white")
-            lbl_qtd.pack(pady=(0, 10))
+            lbl_qtd = tk.Label(card, text=f"{qtd_titulos} título(s) em aberto", font=("Arial", 8), fg="#b91c1c" if especial else "gray", bg=bg_card)
+            lbl_qtd.pack(pady=(0, 8))
 
-            card.bind("<Button-1>", lambda e, c=cod_cfo, n=nome_cli: self.abrir_detalhes_cliente(c, n))
-            lbl_nome.bind("<Button-1>", lambda e, c=cod_cfo, n=nome_cli: self.abrir_detalhes_cliente(c, n))
-            lbl_qtd.bind("<Button-1>", lambda e, c=cod_cfo, n=nome_cli: self.abrir_detalhes_cliente(c, n))
+            # Associa eventos de clique esquerdo (abrir detalhes)
+            for widget in (card, lbl_nome, lbl_qtd):
+                widget.bind("<Button-1>", lambda e, c=cod_cfo, n=nome_cli: self.abrir_detalhes_cliente(c, n))
+                # Botão direito abre o menu de contexto para alternar o tipo de cobrança
+                widget.bind("<Button-3>", lambda e, c=cod_cfo, esp=especial: self.mostrar_menu_contexto(e, c, esp))
 
             coluna += 1
             if coluna >= max_colunas:
                 coluna = 0
                 linha += 1
 
+    def mostrar_menu_contexto(self, event, cod_cfo, estado_atual):
+        """Exibe o menu de contexto ao clicar com o botão direito no card do cliente."""
+        menu = tk.Menu(self.janela, tearoff=0)
+        
+        if estado_atual:
+            menu.add_command(label="Mover para Cobrança Comum", command=lambda: self.alterar_tipo_cobranca(cod_cfo, especial=False))
+        else:
+            menu.add_command(label="Mover para Cobrança Especial", command=lambda: self.alterar_tipo_cobranca(cod_cfo, especial=True))
+            
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def alterar_tipo_cobranca(self, cod_cfo, especial):
+        """Atualiza o status de cobrança especial do cliente no seu arquivo JSON."""
+        cliente_obj = ClienteCobranca.carregar_json(cod_cfo)
+        if not cliente_obj:
+            cliente_obj = ClienteCobranca(cod_cfo=cod_cfo)
+        
+        # Salva a flag de cobrança especial
+        cliente_obj.cobranca_especial = especial
+        cliente_obj.salvar_json()
+        
+        # Recarrega a tela para atualizar as seções instantaneamente
+        self.carregar_clientes_ativos()
+
     def obter_titulos_atualizados_cliente(self, cod_cfo):
-        """Busca do disco apenas os títulos ATIVOS (não pagos) para este cliente específico."""
         pasta_titulos = obter_pasta_titulos()
         titulos_cliente = []
         for arquivo in pasta_titulos.glob("titulo_*.json"):
             try:
                 with open(arquivo, 'r', encoding='utf-8') as f:
                     dados = json.load(f)
-                    # Filtra estritamente para garantir que só traz títulos ativos ('S')
                     if str(dados.get("cod_cfo")) == str(cod_cfo) and dados.get("ativo") == "S":
                         titulos_cliente.append(dados)
             except Exception:
@@ -132,7 +208,6 @@ class JanelaGerenciarCobranca:
         return titulos_cliente
 
     def abrir_detalhes_cliente(self, cod_cfo, nome_cliente):
-        """Abre a subjanela de gerenciamento individual do cliente de forma fluida."""
         if hasattr(self, "sub_janela") and self.sub_janela.winfo_exists():
             self.sub_janela.destroy()
 
@@ -174,7 +249,6 @@ class JanelaGerenciarCobranca:
         btn_salvar_contatos = tk.Button(frame_contatos, text="Salvar Contatos", font=("Arial", 8, "bold"), command=salvar_contatos)
         btn_salvar_contatos.grid(row=0, column=2, rowspan=2, padx=10, pady=5)
 
-        # Container para os blocos dinâmicos de histórico
         self.frame_historicos_container = tk.Frame(sub)
         self.frame_historicos_container.pack(fill="both", expand=True, padx=20, pady=5)
 
@@ -203,13 +277,8 @@ class JanelaGerenciarCobranca:
 
             try:
                 enviar_whatsapp_cobranca_cliente(cliente_obj, titulos)
-                
                 for t_dados in titulos:
-                    t_obj = TituloCobranca.carregar_json(
-                        t_dados.get("numero_documento"), 
-                        t_dados.get("parcela", 1), 
-                        t_dados.get("cod_cfo")
-                    )
+                    t_obj = TituloCobranca.carregar_json(t_dados.get("numero_documento"), t_dados.get("parcela", 1), t_dados.get("cod_cfo"))
                     if t_obj:
                         t_obj.adicionar_historico(canal="WHATSAPP", status="ENVIADO", observacao=f"Mensagem enviada para {w_num}")
                         t_obj.salvar_json()
@@ -230,13 +299,8 @@ class JanelaGerenciarCobranca:
 
             try:
                 enviar_email_cobranca_cliente(cliente_obj, titulos)
-                
                 for t_dados in titulos:
-                    t_obj = TituloCobranca.carregar_json(
-                        t_dados.get("numero_documento"), 
-                        t_dados.get("parcela", 1), 
-                        t_dados.get("cod_cfo")
-                    )
+                    t_obj = TituloCobranca.carregar_json(t_dados.get("numero_documento"), t_dados.get("parcela", 1), t_dados.get("cod_cfo"))
                     if t_obj:
                         t_obj.adicionar_historico(canal="EMAIL", status="ENVIADO", observacao=f"E-mail enviado para {e_end}")
                         t_obj.salvar_json()
@@ -254,7 +318,6 @@ class JanelaGerenciarCobranca:
             sub_pers.grab_set()
 
             tk.Label(sub_pers, text="Digite a mensagem de cobrança personalizada:", font=("Arial", 10, "bold")).pack(anchor="w", padx=20, pady=(15, 5))
-            
             text_msg = tk.Text(sub_pers, font=("Arial", 9), width=50, height=8)
             text_msg.pack(padx=20, pady=5)
             text_msg.focus()
@@ -266,14 +329,9 @@ class JanelaGerenciarCobranca:
                     return
 
                 observacao_formatada = f'"{mensagem_digitada}"'
-
                 try:
                     for t_dados in titulos:
-                        t_obj = TituloCobranca.carregar_json(
-                            t_dados.get("numero_documento"), 
-                            t_dados.get("parcela", 1), 
-                            t_dados.get("cod_cfo")
-                        )
+                        t_obj = TituloCobranca.carregar_json(t_dados.get("numero_documento"), t_dados.get("parcela", 1), t_dados.get("cod_cfo"))
                         if t_obj:
                             t_obj.adicionar_historico(canal="PERSONALIZADO", status="REGISTRADO", observacao=observacao_formatada)
                             t_obj.salvar_json()
@@ -297,7 +355,6 @@ class JanelaGerenciarCobranca:
         btn_pers.grid(row=0, column=2, padx=8)
 
     def atualizar_painel_historico(self, container, titulos):
-        """Reconstrói os blocos de Última Cobrança e Histórico Completo com altura expandida (18 linhas)."""
         todos_historicos = []
         ultimas_por_documento = {}
 
@@ -351,7 +408,6 @@ class JanelaGerenciarCobranca:
 
         todos_historicos.sort(key=lambda x: x["data_hora"], reverse=True)
 
-        # --- SEÇÃO: ÚLTIMA COBRANÇA DE CADA DOCUMENTO EM DESTAQUE ---
         frame_ultima = tk.LabelFrame(container, text=" Última Cobrança Realizada (Por Documento) ", font=("Arial", 9, "bold"), fg="#1d4ed8")
         frame_ultima.pack(fill="x", padx=0, pady=(2, 2))
 
@@ -359,7 +415,6 @@ class JanelaGerenciarCobranca:
         lbl_ultima = tk.Label(frame_ultima, text=texto_ultimas, font=("Arial", 9, "bold"), justify="left", fg="#374151")
         lbl_ultima.pack(anchor="w", padx=10, pady=6)
 
-        # --- SEÇÃO: HISTÓRICO COMPLETO (EXPANDIDO PARA ~18 LINHAS) ---
         tk.Label(container, text="Histórico Completo:", font=("Arial", 9, "bold")).pack(anchor="w", padx=0, pady=(4, 2))
         
         text_historico = tk.Text(container, font=("Arial", 9), width=85, height=18)
