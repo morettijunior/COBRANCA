@@ -117,12 +117,14 @@ class JanelaGerenciarCobranca:
                 linha += 1
 
     def obter_titulos_atualizados_cliente(self, cod_cfo):
+        """Busca do disco apenas os títulos ATIVOS (não pagos) para este cliente específico."""
         pasta_titulos = obter_pasta_titulos()
         titulos_cliente = []
         for arquivo in pasta_titulos.glob("titulo_*.json"):
             try:
                 with open(arquivo, 'r', encoding='utf-8') as f:
                     dados = json.load(f)
+                    # Filtra estritamente para garantir que só traz títulos ativos ('S')
                     if str(dados.get("cod_cfo")) == str(cod_cfo) and dados.get("ativo") == "S":
                         titulos_cliente.append(dados)
             except Exception:
