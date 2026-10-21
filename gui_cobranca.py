@@ -6,6 +6,7 @@ from datetime import date
 
 # Adiciona a pasta utils ao path
 sys.path.append(str(Path(__file__).parent / "utils"))
+
 from relatorio import gerar_relatorio_cobranca_pdf
 from gerenciar_cobranca import JanelaGerenciarCobranca
 from ultimo_dia_util import obter_ultimo_dia_util_anterior, gerar_fins_de_semana_atual_e_anterior

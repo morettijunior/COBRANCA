@@ -1,12 +1,12 @@
 import tkinter as tk
 from tkinter import messagebox
 from pathlib import Path
-import subprocess
 import sys
 from datetime import datetime
 
-# Adiciona a pasta 'utils' ao path do Python para conseguir importar os módulos de lá
+# Adiciona a pasta 'utils' ao path do Python para conseguir importar os módulos normalmente
 sys.path.append(str(Path(__file__).parent / "utils"))
+import bd
 
 class AppCobranca:
     def __init__(self, root):
@@ -57,14 +57,7 @@ class AppCobranca:
 
     def abrir_configuracao(self):
         """Abre a janela de configurações preenchendo com os dados salvos em Meus Documentos."""
-        import sys
-        from pathlib import Path
-        from tkinter import filedialog, ttk
-        
-        utils_path = Path(__file__).parent / "utils"
-        if str(utils_path) not in sys.path:
-            sys.path.append(str(utils_path))
-            
+        from tkinter import filedialog
         import config
 
         janela_config = tk.Toplevel(self.root)
@@ -180,34 +173,21 @@ class AppCobranca:
         btn_salvar.pack(pady=20)
 
     def executar_receber_dados(self):
-        """Executa o script utils/bd.py para atualizar os JSONs."""
+        """Executa a rotina de sincronização do banco de dados importando o módulo bd."""
         try:
-            caminho_bd = Path("utils") / "bd.py"
-            
-            if not caminho_bd.exists():
-                messagebox.showerror("Erro", f"O arquivo de banco de dados não foi encontrado em:\n{caminho_bd}")
-                return
-
-            resultado = subprocess.run([sys.executable, str(caminho_bd)], capture_output=True, text=True, check=True)
-            
+            if hasattr(bd, "sincronizar_dados"):
+                bd.sincronizar_dados()
+            elif hasattr(bd, "main"):
+                bd.main()
             messagebox.showinfo("Sucesso", "Dados recebidos e arquivos JSON atualizados com sucesso!")
-        except subprocess.CalledProcessError as e:
-            messagebox.showerror("Erro de Execução", f"Ocorreu um erro ao rodar o script de banco:\n{e.stderr}")
         except Exception as e:
-            messagebox.showerror("Erro", f"Não foi possível executar a rotina: {e}")
+            messagebox.showerror("Erro", f"Ocorreu um erro ao sincronizar os dados:\n{e}")
 
     def abrir_cobranca(self):
-        """Abre a janela secundária de gerenciamento de cobranças."""
-        import subprocess
-        import sys
-        
-        caminho_cobranca_gui = Path("gui_cobranca.py")
-        if not caminho_cobranca_gui.exists():
-            messagebox.showerror("Erro", "O arquivo gui_cobranca.py não foi encontrado na raiz.")
-            return
-            
-        # Abre como um processo separado ou Toplevel
-        subprocess.Popen([sys.executable, str(caminho_cobranca_gui)])
+        """Abre a central de cobranças."""
+        from gui_cobranca import JanelaCobranca
+        nova_janela = tk.Toplevel(self.root)
+        JanelaCobranca(nova_janela)
 
 if __name__ == "__main__":
     root = tk.Tk()
