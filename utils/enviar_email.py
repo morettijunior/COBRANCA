@@ -12,7 +12,7 @@ import sys
 
 # Garante acesso ao módulo config em Meus Documentos / ProjetoCobranca
 sys.path.append(str(Path(__file__).parent))
-import config
+from . import config
 
 def formatar_moeda(valor):
     if not valor:

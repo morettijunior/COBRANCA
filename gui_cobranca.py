@@ -7,10 +7,10 @@ from datetime import date
 # Adiciona a pasta utils ao path
 sys.path.append(str(Path(__file__).parent / "utils"))
 
-from relatorio import gerar_relatorio_cobranca_pdf
-from gerenciar_cobranca import JanelaGerenciarCobranca
-from ultimo_dia_util import obter_ultimo_dia_util_anterior, gerar_fins_de_semana_atual_e_anterior
-from config import feriados
+from utils.relatorio import gerar_relatorio_cobranca_pdf
+from utils.gerenciar_cobranca import JanelaGerenciarCobranca
+from utils.ultimo_dia_util import obter_ultimo_dia_util_anterior, gerar_fins_de_semana_atual_e_anterior
+from utils.config import feriados
 
 class JanelaCobranca:
     def __init__(self, root):

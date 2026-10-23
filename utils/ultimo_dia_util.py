@@ -1,5 +1,5 @@
 import calendar
-from config import feriados
+from .config import feriados
 from datetime import date, timedelta
 
 # 1. Função para gerar os fins de semana do mês atual e do mês anterior

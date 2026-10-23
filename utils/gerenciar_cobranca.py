@@ -3,9 +3,9 @@ from tkinter import messagebox
 from pathlib import Path
 import json
 from datetime import datetime
-from modelos import ClienteCobranca, obter_pasta_titulos, obter_pasta_clientes, TituloCobranca
-from enviar_email import enviar_email_cobranca_cliente
-from enviar_whatsapp import enviar_whatsapp_cobranca_cliente
+from .modelos import ClienteCobranca, obter_pasta_titulos, obter_pasta_clientes, TituloCobranca
+from .enviar_email import enviar_email_cobranca_cliente
+from .enviar_whatsapp import enviar_whatsapp_cobranca_cliente
 
 class JanelaGerenciarCobranca:
     def __init__(self, master):

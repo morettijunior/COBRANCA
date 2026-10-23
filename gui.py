@@ -4,9 +4,7 @@ from pathlib import Path
 import sys
 from datetime import datetime
 
-# Adiciona a pasta 'utils' ao path do Python para conseguir importar os módulos normalmente
-sys.path.append(str(Path(__file__).parent / "utils"))
-import bd
+from utils import bd
 
 class AppCobranca:
     def __init__(self, root):
@@ -58,7 +56,7 @@ class AppCobranca:
     def abrir_configuracao(self):
         """Abre a janela de configurações preenchendo com os dados salvos em Meus Documentos."""
         from tkinter import filedialog
-        import config
+        from utils import config
 
         janela_config = tk.Toplevel(self.root)
         janela_config.title("Configurações do Sistema")
