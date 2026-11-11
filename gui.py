@@ -10,15 +10,18 @@ class AppCobranca:
     def __init__(self, root):
         self.root = root
         self.root.title("COBRANÇA DE CLIENTES")
-        self.root.geometry("450x350")
+        self.root.geometry("450x3905" if False else "450x380")
         self.root.resizable(False, False)
         
         self.criar_componentes()
 
     def criar_componentes(self):
-        # Título Principal
+        # Título Principal com Versão 1.0.0
         lbl_titulo = tk.Label(self.root, text="COBRANÇA DE CLIENTES", font=("Arial", 16, "bold"))
-        lbl_titulo.pack(pady=25)
+        lbl_titulo.pack(pady=(20, 2))
+
+        lbl_versao = tk.Label(self.root, text="Versão 1.0.0", font=("Arial", 9, "italic"), fg="#6b7280")
+        lbl_versao.pack(pady=(0, 15))
 
         # Botão: Configuração
         btn_config = tk.Button(
@@ -29,7 +32,7 @@ class AppCobranca:
             height=2, 
             command=self.abrir_configuracao
         )
-        btn_config.pack(pady=10)
+        btn_config.pack(pady=8)
 
         # Botão: Receber Dados
         btn_receber = tk.Button(
@@ -40,7 +43,7 @@ class AppCobranca:
             height=2, 
             command=self.executar_receber_dados
         )
-        btn_receber.pack(pady=10)
+        btn_receber.pack(pady=8)
 
         # Botão: Cobrança
         btn_cobranca = tk.Button(
@@ -51,7 +54,20 @@ class AppCobranca:
             height=2, 
             command=self.abrir_cobranca
         )
-        btn_cobranca.pack(pady=10)
+        btn_cobranca.pack(pady=8)
+
+        # Botão discreto de Versionamento no Rodapé
+        btn_sobre = tk.Button(
+            self.root,
+            text="v1.0.0 - Histórico de Versões",
+            font=("Arial", 8),
+            fg="#4b5563",
+            bd=0,
+            cursor="hand2",
+            relief="flat",
+            command=self.abrir_historico_versoes
+        )
+        btn_sobre.pack(pady=(12, 10))
 
     def abrir_configuracao(self):
         """Abre a janela de configurações preenchendo com os dados salvos em Meus Documentos."""
@@ -93,7 +109,7 @@ class AppCobranca:
         def procurar_assinatura():
             arquivo_img = filedialog.askopenfilename(
                 title="Selecionar Imagem de Assinatura",
-                filetypes=[("Imagens PNG/JPG", "*.png *.jpg *.jpeg"), ("Todos os arquivos", "*.*")],
+                filetypes=[("Imagens PNG/JPG", "*.png *.jpg *.jpeg"), ("Todos los arquivos", "*.*")],
                 parent=janela_config
             )
             if arquivo_img:
@@ -186,6 +202,36 @@ class AppCobranca:
         from gui_cobranca import JanelaCobranca
         nova_janela = tk.Toplevel(self.root)
         JanelaCobranca(nova_janela)
+
+    def abrir_historico_versoes(self):
+        """Abre uma janela limpa exibindo o histórico de versionamento do sistema."""
+        janela_sobre = tk.Toplevel(self.root)
+        janela_sobre.title("Histórico de Versões")
+        janela_sobre.geometry("440x380")
+        janela_sobre.resizable(False, False)
+        janela_sobre.grab_set()
+
+        tk.Label(janela_sobre, text="Histórico de Atualizações", font=("Arial", 12, "bold")).pack(pady=(15, 10))
+
+        # Caixa de texto com barra de rolando contendo o histórico
+        txt_historico = tk.Text(janela_sobre, font=("Arial", 9), wrap="word", padx=10, pady=10)
+        txt_historico.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+
+        historico_conteudo = (
+            "v1.0.0 (Novembro/2026)\n"
+            "• Lançamento oficial da versão estável.\n"
+            "• Integração completa com ERP TGA (Firebird) e persistência local em Meus Documentos.\n"
+            "• Suporte a disparos automáticos via E-mail e WhatsApp (Evolution API).\n"
+            "• Gerenciamento de Clientes de Cobrança Comum e Cobrança Especial (Jurídico).\n"
+            "• Filtro de títulos ativos e relatórios em PDF otimizados.\n"
+            "• Compilação nativa em executável otimizada via PyInstaller."
+        )
+
+        txt_historico.insert("1.0", historico_conteudo)
+        txt_historico.config(state="disabled")  # Torna o texto apenas leitura
+
+        btn_fechar = tk.Button(janela_sobre, text="Fechar", font=("Arial", 9), width=15, command=janela_sobre.destroy)
+        btn_fechar.pack(pady=(0, 15))
 
 if __name__ == "__main__":
     root = tk.Tk()

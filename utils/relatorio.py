@@ -46,18 +46,35 @@ def gerar_relatorio_cobranca_pdf():
     if not titulos_ativos:
         return None, "Nenhum título ativo encontrado para gerar o relatório."
 
+    titulos_filtrados = []
+
     for t in titulos_ativos:
         cod_cfo = t.get("cod_cfo")
         arq_cliente = pasta_clientes / f"cliente_{cod_cfo}.json"
+        
+        # Valores padrão caso o arquivo do cliente não exista
         nome_cliente = f"Cliente {cod_cfo}"
+        cobranca_especial = False
+
         if arq_cliente.exists():
             try:
                 with open(arq_cliente, 'r', encoding='utf-8') as f:
                     c_dados = json.load(f)
                     nome_cliente = c_dados.get("nome_cliente", nome_cliente)
+                    # Verifica se o cliente está marcado como cobrança especial (jurídico)
+                    cobranca_especial = c_dados.get("cobranca_especial", False)
             except Exception:
                 pass
+
+        # FILTRO: Ignora clientes de cobrança especial/jurídico no relatório rotineiro
+        if cobranca_especial:
+            continue
+
         t["_nome_cliente"] = nome_cliente
+        titulos_filtrados.append(t)
+
+    if not titulos_filtrados:
+        return None, "Nenhum título de cobrança comum encontrado para gerar o relatório."
 
     def chave_ordenacao(item):
         try:
@@ -66,7 +83,7 @@ def gerar_relatorio_cobranca_pdf():
             dt = datetime.min
         return (item.get("_nome_cliente"), dt, item.get("numero_documento"), str(item.get("parcela", 1)))
 
-    titulos_ativos.sort(key=chave_ordenacao)
+    titulos_filtrados.sort(key=chave_ordenacao)
 
     timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
     caminho_pdf = pasta_relatorios / f"relatorio_cobranca_{timestamp_str}.pdf"
@@ -121,23 +138,19 @@ def gerar_relatorio_cobranca_pdf():
         textColor=colors.whitesmoke
     )
 
-    elementos.append(Paragraph("RELATÓRIO DE TÍTULOS EM ABERTO", titulo_estilo))
+    elementos.append(Paragraph("RELATÓRIO DE TÍTULOS EM ABERTO (COBRANÇA COMUM)", titulo_estilo))
     elementos.append(Paragraph(f"Emitido em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", sub_estilo))
 
     from itertools import groupby
 
     total_geral = 0.0
 
-    for cliente_nome, grupo_itens in groupby(titulos_ativos, key=lambda x: x["_nome_cliente"]):
+    for cliente_nome, grupo_itens in groupby(titulos_filtrados, key=lambda x: x["_nome_cliente"]):
         itens_cliente = list(grupo_itens)
         
-        # Lista temporária para conter todos os elementos do cliente atual
         bloco_cliente = []
-
-        # Cabeçalho do Grupo de Cliente
         bloco_cliente.append(Paragraph(f"Cliente: {cliente_nome}", cliente_heading_estilo))
 
-        # Tabela do grupo
         dados_tabela = [
             [
                 Paragraph("Nº DOC", celula_header_estilo),
@@ -188,7 +201,6 @@ def gerar_relatorio_cobranca_pdf():
 
         bloco_cliente.append(tabela)
 
-        # Linha de Subtotal do Cliente
         subtotal_estilo = ParagraphStyle(
             'SubtotalEstilo',
             parent=estilos['Normal'],
@@ -202,12 +214,10 @@ def gerar_relatorio_cobranca_pdf():
         sub_str = f"Subtotal do Cliente: R$ {subtotal_cliente:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         bloco_cliente.append(Paragraph(sub_str, subtotal_estilo))
 
-        # O KeepTogether garante que o nome do cliente, a tabela e o subtotal fiquem juntos na mesma página
         elementos.append(KeepTogether(bloco_cliente))
 
     elementos.append(Spacer(1, 10))
 
-    # Resumo Total Geral da Carteira
     resumo_estilo = ParagraphStyle(
         'ResumoEstilo',
         parent=estilos['Normal'],
@@ -216,7 +226,7 @@ def gerar_relatorio_cobranca_pdf():
         textColor=colors.HexColor('#1f2937'),
         alignment=2
     )
-    total_str = f"VALOR TOTAL DA CARTEIRA: R$ {total_geral:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    total_str = f"VALOR TOTAL DA CARTEIRA COMUM: R$ {total_geral:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     elementos.append(Paragraph(total_str, resumo_estilo))
 
     doc.build(elementos)
